@@ -43,4 +43,4 @@ python3 scheduler.py
 ```
 
 # Design with Why 
-*only pull based subscriber used, because push based requires valid SSL endpoint
+- only pull based subscriber used, because push based requires valid SSL endpoint

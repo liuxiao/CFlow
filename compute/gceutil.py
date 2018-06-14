@@ -23,7 +23,7 @@ class GCEUtil(object):
 	def list_instances(self, filter):
 		result = self.compute.instances().list(project=self.project, zone=self.zone, filter=filter).execute()
 		#print(result)
-		if 'item' not in result:
+		if 'items' not in result:
 			return []
 		return result['items']
 	# [END list_instances]

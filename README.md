@@ -3,7 +3,7 @@ The framework orchestrates a simple workflow to dispatch and manage large amount
 
 For example, to train a ML model and perform predictions on many independent datasets(125 files, each contains 10M records), there should be an efficient way to parallel the work, so that user can focus only one core algorithm file, plugin it in and kick off a run. The ouput will be then combined. To prepare test data submitted to [Kaggle challenges](https://www.kaggle.com/c/trackml-particle-identification), with 125 parallel VMs(without GPU), the time reduced from 14 hours to 15 minutes.
 
-# Design consideratione
+# Design consideration
 *Keep things simple!*
 
 Currently, there is no easy way to execute complex functions/codes with custom packages, ML for example, on GCE, GKE, or ML Engine. Cloud function can only run simple scripts(javascript). 

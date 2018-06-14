@@ -10,13 +10,14 @@ Currently, there is no easy way to execute complex functions/codes with custom p
 
 If you are using tensorflow, and need a hybrid cloud architecture, look into [Kubeflow](https://github.com/kubeflow/kubeflow).
 
-There are 3 important scripting of framework:
-- 3 scripts on worker VM:
+There are 2 important scripting of framework:
+- 4 scripts on worker VM:
    - [init.sh](https://github.com/liuxiao/CFlow/blob/master/init.sh) - boot script called when VM starts; built into VM image
    - [startup-singal](https://github.com/liuxiao/CFlow/blob/master/startup-signal.py) - boot script downloaded from storage, main logic happens here
    - [shutdown-signal](https://github.com/liuxiao/CFlow/blob/master/shutdown-signal.py) - called upon VM shutdown; record unfinish work
-   - [scheduler.py](https://github.com/liuxiao/CFlow/blob/master/scheduler.py) - to create, monitor, delete work VM
    - [task.sh](https://github.com/liuxiao/CFlow/blob/master/task/task.sh) - entry point of user provided script
+- [scheduler.py](https://github.com/liuxiao/CFlow/blob/master/scheduler.py) - on different VM or from terminal console, to create, monitor, delete work VM
+
 
 ![Simple Design Diagram](https://drive.google.com/uc?id=1yUoPMxaNyD_J40smGI3cPOxX8olGp18a)
 
@@ -52,7 +53,7 @@ There are 3 important scripting of framework:
    - Pub/Sub Subscriber
    - Storage Object Admin
    
-1. Use another standard VM as the controller to kick off the script or directly use the terminal console
+1. Use another standard VM as the controller to kick off the script or directly use the terminal console. Make sure the user execute the script has right permission.
 
 ```bash
 python3 scheduler.py
@@ -61,3 +62,4 @@ python3 scheduler.py
 # Limitation
 - only pull based subscriber used, because push based requires valid SSL endpoint
 - log on worker nodes are stored as /tmp/cflow/cflow.log; currently we do not collect logs from nodes. But should be easy to modify the sample task.sh to achieve
+- pub/sub content is not clear before each run

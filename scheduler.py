@@ -77,7 +77,7 @@ class Scheduler(object):
 			gce.wait_for_operation(operation['name'])
 		logger.debug('Existing [__createWorkerNode] {}'.format(vmName))
 
-	def _deleteWorkerNode(self, vmName, wait=False):
+	def _——deleteWorkerNode(self, vmName, wait=False):
 		gce = GCEUtil(const.PROJECT_NAME, const.VM_ZONE)
 		operation = gce.delete_instance(vmName)
 		if wait:
@@ -121,7 +121,7 @@ class Scheduler(object):
 			else:
 				self.vmshutdown.add(instance['name'])
 			logger.info(' - ' + instance['name'] + " - " + instance['status'])
-		logger.info("Entering [__monitorWorkerNode]")
+		logger.info("Exiting [__monitorWorkerNode]")
 		return instances
 
 	# this is a blocking method, the main will block here until terminated by user or tasks complete

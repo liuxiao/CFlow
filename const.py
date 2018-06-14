@@ -1,5 +1,5 @@
 #Number of parallel work node
-WORKER_NODE_CNT = 50
+WORKER_NODE_CNT = 25
 
 #GCP
 PROJECT_NAME = "cloudlewisvpn"

@@ -11,6 +11,8 @@ import math
 import random
 import sys
 import time
+import os
+from pubsub.setup_gcp_pubsub import setupPubSub
 
 # Use global setting for client
 # 1. initialize a set of tasks
@@ -42,38 +44,38 @@ class Scheduler(object):
 
 	# construct list of task to execute
 	# method TO BE MODIFIED
-	def _createTask(self):
+	def __createTask(self):
 		for i in range(125):
 			task = '%09d' % i + ' test'
 			self.tasks.append(task) # task data with all params and args needed
 			logger.debug('add task [{}]'.format(task))
 
-	def _publishTask(self):
+	def __publishTask(self):
 		for task in self.tasks:
 			logger.info('publishing task {}'.format(task))
 			self.todoPub.publish(task)
 
 	# received callback - task has been completed
 	# add the task to Done set
-	def _doneCallback(self, doneTask):
-		logger.debug('Entering [_doneCallback]')
+	def __doneCallback(self, doneTask):
+		logger.debug('Entering [__doneCallback]')
 		self.dones.add(doneTask)
-		logger.debug('Exiting [_doneCallback]')
+		logger.debug('Exiting [__doneCallback]')
 
 	# register aync callback function, which will start a separate background thread on listening
-	def _registerAsyncCallback(self):
-		logger.debug('Entering [_registerAsyncCallback]')
-		self.doneSub.poll(self._doneCallback)
-		logger.debug('Existing [_registerAsyncCallback]')
+	def __registerAsyncCallback(self):
+		logger.debug('Entering [__registerAsyncCallback]')
+		self.doneSub.poll(self.__doneCallback)
+		logger.debug('Existing [__registerAsyncCallback]')
 
-	def _createWorkerNode(self, vmName, wait=False):
-		logger.debug('Entering [_createWorkerNode] {}'.format(vmName))
+	def __createWorkerNode(self, vmName, wait=False):
+		logger.debug('Entering [__createWorkerNode] {}'.format(vmName))
 		gce = GCEUtil(const.PROJECT_NAME, const.VM_ZONE)
 		# vmname, customtype, imagename, serviceaccount
 		operation = gce.create_instance(vmName, const.VM_TYPE, const.VM_IMAGE_NAME, const.VM_COMPUTE_SERVICE_ACCOUNT)
 		if wait:
 			gce.wait_for_operation(operation['name'])
-		logger.debug('Existing [_createWorkerNode] {}'.format(vmName))
+		logger.debug('Existing [__createWorkerNode] {}'.format(vmName))
 
 	def _deleteWorkerNode(self, vmName, wait=False):
 		gce = GCEUtil(const.PROJECT_NAME, const.VM_ZONE)
@@ -81,7 +83,7 @@ class Scheduler(object):
 		if wait:
 			gce.wait_for_operation(operation['name'])
 
-	def _startWorkerNode(self, vmName, wait=False):
+	def __startWorkerNode(self, vmName, wait=False):
 		logger.debug('Entering [_startWorkerNode] {}'.format(vmName))
 		gce = GCEUtil(const.PROJECT_NAME, const.VM_ZONE)
 		operation = gce.start_instance(vmName)
@@ -92,12 +94,12 @@ class Scheduler(object):
 
 	# set default wait False, the preemptible VM seems always be able to create
 	# if no resource, it will be in shutdown states; there is no need to recreate them
-	def _createWorkerNodes(self, wait=False):
+	def __createWorkerNodes(self, wait=False):
 		logger.info('creating new worker nodes for the tasks')
 		# use a fix number of thread to start the VM
 		#using worker thread to start nodes in parallel
 		with ThreadPoolExecutor(max_workers=5) as executor:
-			future_to_rs = {executor.submit(self._createWorkerNode, '{}{}'.format(const.VM_NAME_PREFIX, seq), wait): seq for seq in range(const.WORKER_NODE_CNT)}
+			future_to_rs = {executor.submit(self.__createWorkerNode, '{}{}'.format(const.VM_NAME_PREFIX, seq), wait): seq for seq in range(const.WORKER_NODE_CNT)}
 			for future in as_completed(future_to_rs):
 				rs = future_to_rs[future]
 				try:
@@ -107,8 +109,8 @@ class Scheduler(object):
 					print('exception: %s', exc)
 
 	# apply filter upon listing
-	def _monitorWorkerNode(self):
-		logger.info("Entering [_monitorWorkerNode]")
+	def __monitorWorkerNode(self):
+		logger.info("Entering [__monitorWorkerNode]")
 		gce = GCEUtil(const.PROJECT_NAME, const.VM_ZONE)
 		instances = gce.list_instances('(name={}*)'.format(const.VM_NAME_PREFIX))
 		self.vmrunning.clear()
@@ -119,35 +121,41 @@ class Scheduler(object):
 			else:
 				self.vmshutdown.add(instance['name'])
 			logger.info(' - ' + instance['name'] + " - " + instance['status'])
-		logger.info("Entering [_monitorWorkerNode]")
+		logger.info("Entering [__monitorWorkerNode]")
 		return instances
 
 	# this is a blocking method, the main will block here until terminated by user or tasks complete
-	def _monitorTillWorkComplete(self):
+	def __monitorTillWorkComplete(self):
 		logger.info("Entering [_monitorTillWorkComplete]")
 		logger.info("Done tasks are : {}".format(self.dones))
 		while len(self.dones) < len(self.tasks): # not yet finish all
 			numDone = len(self.dones) # this value will change, take a snapshot
 			numTotal = len(self.tasks)
 			numUncompleted= numTotal - numDone
-			logger.logo('{} tasks done, {} uncompleted, with total {} tasks'.format(numDone, numUncompleted, numTotal))
-			instances = self._monitorWorkerNode()
+			logger.info('{} tasks done, {} uncompleted, with total {} tasks'.format(numDone, numUncompleted, numTotal))
+			instances = self.__monitorWorkerNode()
 			if len(self.vmrunning) < min(const.WORKER_NODE_CNT, numUncompleted):
 				numNodeToStart = min(const.WORKER_NODE_CNT, numUncompleted) - len(self.vmrunning)
-				nodeToStart = random.sample(list(self.vmshutdown), numNodeToStart)
-				logger.logo('Prepare to start {} of workers with random pick {}'.format(numNodeToStart, nodeToStart))
-				for node in nodeToStart:
-					self._startWorkerNode(node)
+				logger.info('{} worker node, {} uncompleted task, and {} running VMs; Need to start {}'.format(const.WORKER_NODE_CNT,
+					numUncompleted, len(self.vmrunning), numNodeToStart))
+				# TODO : sample might cause problem, because numNodeToStart might > shutdown, in which case, VM is starting up
+				if len(self.vmshutdown) < numNodeToStart:
+					numNodeToStart = len(self.vmshutdown)
+				if numNodeToStart > 0:
+					nodeToStart = random.sample(list(self.vmshutdown), numNodeToStart)
+					logger.info('Prepare to start {} of workers with random pick {}'.format(numNodeToStart, nodeToStart))
+					for node in nodeToStart:
+						self.__startWorkerNode(node)
 			time.sleep(25)
 		logger.info("Existing [_monitorTillWorkComplete]")
 
 
-	def _deleteAllNodes(self, wait=False):
+	def __deleteAllNodes(self, wait=False):
 		# use the thread pool to execute in parallel
 		# future optimization can be done to remove not used shutdown instance to future reduce cost
 		allvms = self.vmrunning.union(self.vmshutdown)
 		with ThreadPoolExecutor(max_workers=5) as executor:
-			future_to_rs = {executor.submit(self._deleteWorkerNode, vmName, wait): vmName for vmName in allvms}
+			future_to_rs = {executor.submit(self.__deleteWorkerNode, vmName, wait): vmName for vmName in allvms}
 			for future in as_completed(future_to_rs):
 				rs = future_to_rs[future]
 				try:
@@ -155,20 +163,25 @@ class Scheduler(object):
 					print(l)
 				except Exception as exc:
 					print('exception: %s', exc)
-
-
+		
 	# scheduler main function
 	def start(self):
-		self._createTask()
-		#self._publishTask()
-		self._registerAsyncCallback()
-		self._createWorkerNodes()
-		time.sleep(5) # allow system to response
-		self._monitorTillWorkComplete()
-		self._deleteAllNodes()
+		self.__createTask()
+		self.__registerAsyncCallback()
+		self.__createWorkerNodes()
+		self.__publishTask()
+		time.sleep(15) # allow system to response
+		self.__monitorTillWorkComplete()
+		self.__deleteAllNodes()
 
+def __preCheck():
+	if "GOOGLE_APPLICATION_CREDENTIALS" not in os.environ:
+		logger.error("Environment variable [GOOGLE_APPLICATION_CREDENTIALS] is not set.")
+		sys.exit(1)
 
 ######## MAIN ########
+__preCheck()
+setupPubSub()
 engine = Scheduler()
 engine.start()
 
